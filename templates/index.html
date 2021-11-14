@@ -1,0 +1,197 @@
+﻿<!DOCTYPE html>
+<html lang='en'>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, minimum-scale=1.0, maximum-scale=1.0, initial-scale=1.0"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700,700i"/>
+  <link rel="stylesheet" href="templates.css"/>
+  <title>Templates</title>
+  <meta name="description" content="Free PSD Templates">
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-4249565-47"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+
+    function gtag() {
+      dataLayer.push(arguments);
+    }
+
+    gtag('js', new Date());
+    gtag('config', 'UA-4249565-47');
+  </script>
+  <script src="templates.js"></script>
+  <script>
+    var tpls;
+    var ccat = -1, caut = -1, citm = -1, ordr = 0, cscr = 0;  //Current scroll
+    var lo = localStorage.getItem("ordr");
+    if (lo) lo = JSON.parse(lo);
+    if (lo && lo[1] > Date.now() - 30000) ordr = lo[0];
+    var cont, cats, search, back, itms, kwds;
+
+    function clearNode(node) {
+      while (node.firstChild) node.removeChild(node.firstChild);
+    }
+
+    function isDisplayed(nd) {
+      while (true) {
+        if (nd == document) return true;
+        if (nd == null) return false;
+        nd = nd.parentNode;
+      }
+    }
+
+    function go() {
+      cont = document.getElementById("cont");
+      cats = document.getElementById("cats");
+      kwds = document.getElementById("kwds");
+      search = document.getElementById("search");
+      back = document.getElementById("back");
+      cont.removeChild(back);
+      itms = document.getElementById("itms");
+      window.addEventListener("resize", onResize, false);
+      onResize();
+
+      let request = new XMLHttpRequest();
+      request.open("GET", "./templates.json?r=" + Date.now(), true);
+      request.onload = imgsLoaded;
+      request.onerror = function (e) {
+        console.log(e.target.response);
+      };
+      request.send();
+
+      //if(Math.random() < 500) {let request = new XMLHttpRequest();request.open("GET", "../papi/img/reduce.php", true);request.send();}
+      //if(Math.random() < 0.01) {let request = new XMLHttpRequest();request.open("GET", "https://www.photopea.com/papi/updateTemplates.php", true);request.send();}
+
+      window.onbeforeunload = function () {
+        if (citm == -1) localStorage.setItem("scrl", JSON.stringify([Date.now(), ccat, caut, itms.scrollTop]));
+      }
+    }
+
+    function onResize() {
+      if (tpls) updateView();
+    }
+
+    function imgsLoaded(e) {
+      tpls = JSON.parse(e.target.response);
+      var sch = window.location.href.split("/").pop();
+      if (sch != "templates") {
+        var ci = sch.slice(2).split("?")[0].split("&")[0];
+        if (sch[0] == "c") {
+          var cts = tpls["categories"];
+          for (var c in cts) if (toCat(cts[c]) == ci) ccat = parseInt(c.slice(1));
+        }
+        if (sch[0] == "t") {
+          let lst = tpls["list"];
+          for (let i = 0; i < lst.length; i++) if (tempID(lst[i]) == ci) citm = i;
+        }
+        if (sch[0] == "a") {
+          let lst = tpls["authors"];
+          for (let i = 0; i < lst.length; i++) if (lst[i][0] == ci) caut = i;
+        }
+      }
+      var tit = "PSD Templates";
+      if (ccat != -1) tit = tpls.categories["c" + ccat] + " | " + tit;
+      if (caut != -1) tit = "By " + tpls.authors   [caut][1] + " | " + tit;
+      if (citm != -1) tit = tpls.list      [citm][8] + " | " + tit;
+      if (citm != -1) document.head.children.namedItem("description").content = tpls.list[citm][9];
+      document.title = tit;
+      updateView();
+
+      var scrl = localStorage.getItem("scrl");
+      if (scrl) {
+        scrl = JSON.parse(scrl);
+        if (scrl.length == null) return;
+        if (citm == -1 && Date.now() - scrl[0] < 60e3 && scrl[1] == ccat && scrl[2] == caut) itms.scrollTop = scrl[3];
+      }
+    }
+
+    function updateView() {
+      var w = window.innerWidth, h = window.innerHeight;
+      itms.style.height = (h - 90) + "px";
+
+      var tpl = citm != -1 ? tpls.list[citm] : null;
+      var comp;
+      if (ordr == 0) comp = function (a, b) {
+        return cost0(b) - cost0(a);
+      }
+      if (ordr == 1) comp = function (a, b) {
+        return cost1(b) - cost1(a);
+      }
+      if (ordr == 2) comp = function (a, b) {
+        return cost2(b) - cost2(a);
+      }
+      tpls.list.sort(comp);
+      if (tpl) citm = tpls.list.indexOf(tpl);
+
+      if (citm == -1 && !isDisplayed(search)) {
+        clearNode(cont);
+        cont.appendChild(search);
+        cont.appendChild(itms);
+      }
+      if (citm != -1) {
+        clearNode(cont);
+        cont.appendChild(back);
+        cont.appendChild(itms);
+      }
+      clearNode(itms);
+
+      var twds = kwds.value.trim().toLowerCase(), wds = twds.split(/[ ,]+/);
+      let out = [];
+      makeView(tpls, out, twds, wds, ccat, caut, citm);
+
+      itms.innerHTML = out.join("\n");
+
+      out = [];
+      getCats(tpls, ccat, out);
+      cats.innerHTML = out.join("\n");
+
+      if (citm == -1) {
+        var ords = document.getElementsByClassName("order");
+        for (var i = 0; i < 3; i++) ords[i].setAttribute("class", "order" + (i == ordr ? " blue" : ""));
+      }
+    }
+
+    function backClicked(e) {
+      history.back();
+      //citm = -1; updateView(); itms.scrollTo(0,cscr);
+    }
+
+    function itemClicked(nitm) {
+      if (citm != -1) {
+        if (window.location != window.parent.location) window.parent.postMessage("--ot " + tpls.list[citm][2]);
+        else window.open("//www.Photopea.com#t" + tempID(tpls.list[citm]));
+      }
+      //cscr = itms.scrollTop; citm = nitm; updateView(); itms.scrollTo(0,0);
+    }
+
+    function catClicked(nc) {
+      if (nc == ccat) ccat = -1;
+      else ccat = nc;
+      citm = -1;
+      updateView();
+    }
+
+    function setOrder(ord) {
+      ordr = ord;
+      localStorage.setItem("ordr", JSON.stringify([ordr, Date.now()]));
+      updateView();
+      itms.scrollTo(0, 0);
+    }
+  </script>
+</head>
+<body onload="go()" class="flexrow">
+<div id="cats">
+</div>
+<div id="cont">
+  <div id="search">
+    <span onclick="setOrder(0)" class="order blue">Hot</span>
+    <span onclick="setOrder(1)" class="order">New</span>
+    <span onclick="setOrder(2)" class="order">Top</span>
+    <label for="kwds" style="margin-left:2em;">Search:</label> <input type="text" id="kwds" oninput="updateView()"/>
+  </div>
+  <div id="back">
+    <span class="back" onclick="backClicked()">&lt; Back</span>
+  </div>
+  <div id="itms" class="scrollable"></div>
+</div>
+</body>
+</html>
